@@ -28,7 +28,8 @@
 			"extensions": [
 				"yzhang.markdown-all-in-one",
 				"bierner.markdown-mermaid",
-				"anthropic.claude-code"
+				"anthropic.claude-code",
+				"GitHub.vscode-pull-request-github"
 			]
 		}
 	},
