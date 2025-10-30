@@ -35,6 +35,17 @@
     ]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "task-sentinel-session",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx claude-flow@alpha hooks session-restore --session-id 'task-sentinel-session' --restore-context true --resume-in-progress-tasks true --memory-namespace 'task-sentinel/active'"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -51,6 +62,15 @@
           {
             "type": "command",
             "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | tr '\\n' '\\0' | xargs -0 -I {} npx claude-flow@alpha hooks pre-edit --file '{}' --auto-assign-agents true --load-context true"
+          }
+        ]
+      },
+      {
+        "matcher": "task-sentinel-claim",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx claude-flow@alpha hooks pre-task --description 'task-claim-validation' --validate-dependencies true --check-worker-availability true"
           }
         ]
       }
@@ -73,6 +93,45 @@
             "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | tr '\\n' '\\0' | xargs -0 -I {} npx claude-flow@alpha hooks post-edit --file '{}' --format true --update-memory true"
           }
         ]
+      },
+      {
+        "matcher": "task-sentinel-claim",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx claude-flow@alpha hooks post-task --task-id 'task-claim' --initialize-heartbeat true --memory-key 'task-sentinel/active/current-task' --memory-namespace 'ooda-loop'"
+          }
+        ]
+      },
+      {
+        "matcher": "task-sentinel-complete",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx claude-flow@alpha hooks post-task --task-id 'task-complete' --cleanup-memory true --close-issue true --export-metrics true --memory-namespace 'task-sentinel/active'"
+          }
+        ]
+      },
+      {
+        "matcher": "task-sentinel-heartbeat",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx claude-flow@alpha memory retrieve --key 'task-sentinel/current-task' --namespace 'ooda-loop' | jq -r '.issue_number // empty' | xargs -I {} sh -c 'if [ -n \"{}\" ]; then gh issue comment {} --body \"[HEARTBEAT] Task in progress - $(date -Iseconds)\"; fi'"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "task-sentinel-observe",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "gh issue list --repo $(git config --get remote.origin.url | sed 's|.*github.com[:/]\\(.*\\)\\.git|\\1|') --label ready --label queued --state open --json number,title,labels,assignees 2>/dev/null | jq '.[] | select(.assignees | length == 0)' | npx claude-flow@alpha memory store --key 'task-sentinel/available-tasks' --namespace 'ooda-loop' || true",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PreCompact": [
@@ -81,7 +140,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/bin/bash -c 'INPUT=$(cat); CUSTOM=$(echo \"$INPUT\" | jq -r \".custom_instructions // \\\"\\\"\"); echo \"🔄 PreCompact Guidance:\"; echo \"📋 IMPORTANT: Review CLAUDE.md in project root for:\"; echo \"   • 54 available agents and concurrent usage patterns\"; echo \"   • Swarm coordination strategies (hierarchical, mesh, adaptive)\"; echo \"   • SPARC methodology workflows with batchtools optimization\"; echo \"   • Critical concurrent execution rules (GOLDEN RULE: 1 MESSAGE = ALL OPERATIONS)\"; if [ -n \"$CUSTOM\" ]; then echo \"🎯 Custom compact instructions: $CUSTOM\"; fi; echo \"✅ Ready for compact operation\"'"
+            "command": "/bin/bash -c 'INPUT=$(cat); CUSTOM=$(echo \"$INPUT\" | jq -r \".custom_instructions // \\\"\\\"\"); echo \"🔄 PreCompact Guidance:\"; echo \"📋 IMPORTANT: Review CLAUDE.md in project root for:\"; echo \"   • 54 available agents and concurrent usage patterns\"; echo \"   • Swarm coordination strategies (hierarchical, mesh, adaptive)\"; echo \"   • SPARC methodology workflows with batchtools optimization\"; echo \"   • Critical concurrent execution rules (GOLDEN RULE: 1 MESSAGE = ALL OPERATIONS)\"; echo \"   • Task Sentinel OODA loop hooks for autonomous coordination\"; if [ -n \"$CUSTOM\" ]; then echo \"🎯 Custom compact instructions: $CUSTOM\"; fi; echo \"✅ Ready for compact operation\"'"
           }
         ]
       },
@@ -90,7 +149,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/bin/bash -c 'echo \"🔄 Auto-Compact Guidance (Context Window Full):\"; echo \"📋 CRITICAL: Before compacting, ensure you understand:\"; echo \"   • All 54 agents available in .claude/agents/ directory\"; echo \"   • Concurrent execution patterns from CLAUDE.md\"; echo \"   • Batchtools optimization for 300% performance gains\"; echo \"   • Swarm coordination strategies for complex tasks\"; echo \"⚡ Apply GOLDEN RULE: Always batch operations in single messages\"; echo \"✅ Auto-compact proceeding with full agent context\"'"
+            "command": "/bin/bash -c 'echo \"🔄 Auto-Compact Guidance (Context Window Full):\"; echo \"📋 CRITICAL: Before compacting, ensure you understand:\"; echo \"   • All 54 agents available in .claude/agents/ directory\"; echo \"   • Concurrent execution patterns from CLAUDE.md\"; echo \"   • Batchtools optimization for 300% performance gains\"; echo \"   • Swarm coordination strategies for complex tasks\"; echo \"   • Task Sentinel OODA loop automation\"; echo \"⚡ Apply GOLDEN RULE: Always batch operations in single messages\"; echo \"✅ Auto-compact proceeding with full agent context\"'"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx claude-flow@alpha hooks session-end --generate-summary true --persist-state true --export-metrics true --memory-namespace 'task-sentinel/active'"
           }
         ]
       }
