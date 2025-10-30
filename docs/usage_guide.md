@@ -2714,6 +2714,331 @@ gh help
 
 ---
 
+## Phase 2 Features
+
+Task Sentinel Phase 2 introduces advanced cognitive architecture with GOAP planning and OODA loop monitoring.
+
+### Quick Start with Phase 2
+
+**Automatic GOAP Planning:**
+```bash
+# Create task - GOAP automatically generates optimal plan
+/task-create --title "Build REST API with authentication" \
+             --priority 8000 \
+             --labels "api,authentication,feature"
+
+# Output includes GOAP plan:
+# Initial GOAP Plan (6 steps):
+# 1. Research authentication patterns (Cost: 2)
+# 2. Design API schema (Cost: 3)
+# 3. Implement authentication logic (Cost: 5)
+# 4. Create API endpoints (Cost: 4)
+# 5. Write tests (Cost: 3)
+# 6. Deploy and validate (Cost: 2)
+#
+# Total estimated cost: 19
+# Parallel optimized time: ~45m (vs 60m sequential)
+```
+
+**OODA Loop Monitoring:**
+```bash
+# Claim task - OODA loop starts automatically
+/task-claim --issue 45
+
+# OODA Loop Status:
+# • Observe: Monitoring repository, tests, dependencies
+# • Orient: Context established, analyzing patterns
+# • Decide: Executing GOAP plan step 1
+# • Act: Research phase initiated
+#
+# OODA loop runs every 30 seconds, adapting plan as needed
+```
+
+**Adaptive Replanning:**
+```bash
+# During execution, OODA observes better approach
+/task-status --issue 45
+
+# OODA Loop Activity:
+# 11:15 [Observe] Discovered existing authentication system
+# 11:16 [Orient] Analyzing integration opportunity (95% compatible)
+# 11:18 [Decide] Replanning for 30% cost reduction
+# 11:19 [Act] Updated GOAP plan, continuing execution
+#
+# Cost reduced: 19 → 13 (31% savings)
+# Time saved: ~20 minutes
+```
+
+### Phase 2 Configuration
+
+**Enable Phase 2 Features:**
+```bash
+# Create configuration directory
+mkdir -p .tasksentinel
+
+# Configure GOAP planner
+cat > .tasksentinel/goap.json << EOF
+{
+  "maxSearchDepth": 50,
+  "enableParallelization": true,
+  "replanThreshold": 0.15,
+  "costWeight": 1.0
+}
+EOF
+
+# Configure OODA loop
+cat > .tasksentinel/ooda.json << EOF
+{
+  "observationInterval": 30000,
+  "observationSources": ["git", "tests", "dependencies", "security"],
+  "enableAutomaticReplan": true,
+  "decisionThreshold": 0.7
+}
+EOF
+
+# Configure quality gates
+cat > .tasksentinel/quality-gates.json << EOF
+{
+  "minCoverage": 0.80,
+  "maxComplexity": 10,
+  "allowedVulnerabilities": {
+    "critical": 0,
+    "high": 0
+  }
+}
+EOF
+```
+
+### Advanced Planning Examples
+
+**Example 1: Complex Feature with GOAP**
+```bash
+# Create complex task
+/task-create --title "Build payment gateway integration" \
+             --priority 9000 \
+             --labels "payment,integration,critical"
+
+# GOAP generates comprehensive plan:
+#
+# Phase 1: Research & Design (Parallel)
+# ├─ 1. Research payment providers (Cost: 2, researcher)
+# └─ 2. Research security requirements (Cost: 2, security-manager)
+#
+# Phase 2: Architecture (Sequential)
+# └─ 3. Design payment gateway architecture (Cost: 4, architect)
+#
+# Phase 3: Implementation (Parallel)
+# ├─ 4. Implement Stripe integration (Cost: 5, backend-dev)
+# ├─ 5. Implement webhook handler (Cost: 4, backend-dev)
+# └─ 6. Create payment UI components (Cost: 4, coder)
+#
+# Phase 4: Testing (Parallel)
+# ├─ 7. Write unit tests (Cost: 3, tester)
+# └─ 8. Create integration tests (Cost: 4, tester)
+#
+# Phase 5: Validation (Sequential)
+# ├─ 9. Security audit (Cost: 3, security-manager)
+# └─ 10. Compliance check (Cost: 2, reviewer)
+#
+# Total cost: 33
+# Sequential time: ~110 minutes
+# Parallel optimized time: ~75 minutes
+# Speedup: 1.47x
+```
+
+**Example 2: OODA-Driven Adaptation**
+```bash
+# Start execution
+/task-claim --issue 50
+
+# Initial plan: Build from scratch (Cost: 33)
+
+# OODA observes during execution:
+# [Observe] Step 1 completed - Found existing Stripe library
+# [Orient] Analysis: Pre-built library covers 70% of requirements
+# [Decide] Replan opportunity: Integrate library instead of building
+# [Act] Replanning...
+#
+# Updated plan: Integrate existing library (Cost: 22)
+# ├─ 1. ✓ Research payment providers (completed)
+# ├─ 2. ✓ Research security requirements (completed)
+# ├─ 3. Analyze existing Stripe library (Cost: 1, NEW)
+# ├─ 4. Extend library for custom needs (Cost: 3, MODIFIED from 5)
+# ├─ 5. Implement webhook handler (Cost: 4, unchanged)
+# └─ ... (rest of plan adjusted)
+#
+# Cost saved: 11 (33% reduction)
+# Time saved: ~25 minutes
+# Quality improvement: Better tested library integration
+```
+
+### Performance Metrics with Phase 2
+
+**View Detailed Metrics:**
+```bash
+# Get comprehensive Phase 2 metrics
+/task-status --issue 45 --metrics
+
+# GOAP Metrics:
+# ├─ Planning time: 2m 30s
+# ├─ Plan optimality: 94% (near optimal)
+# ├─ Actions executed: 8/8
+# ├─ Parallel efficiency: 68% (good parallelization)
+# └─ Replans: 1 (31% cost reduction)
+#
+# OODA Metrics:
+# ├─ Observations: 23 (0.38/minute)
+# ├─ High priority obs: 5
+# ├─ Patterns identified: 3
+# ├─ Decisions made: 19
+# ├─ Replans triggered: 1
+# └─ Replan benefit: 31% cost savings
+#
+# Adaptive Learning:
+# ├─ Pattern: authentication-integration learned
+# ├─ Accuracy: 94.2%
+# └─ Applicable to: 8 future tasks
+```
+
+### Integration Patterns
+
+**Pattern 1: GOAP + Agent Coordination**
+```bash
+# GOAP automatically selects optimal agents
+/task-create --title "Full-stack feature implementation"
+
+# GOAP Plan with Agent Assignment:
+# 1. Research patterns → researcher
+# 2. Design database → architect
+# 3. Design API → architect (parallel with #2)
+# 4. Implement backend → backend-dev (needs #2, #3)
+# 5. Implement frontend → coder (needs #3)
+# 6. Integration tests → tester (needs #4, #5)
+#
+# Agent utilization optimized by GOAP
+```
+
+**Pattern 2: OODA + Quality Gates**
+```bash
+# OODA monitors quality throughout execution
+/task-claim --issue 45
+
+# OODA + Quality Integration:
+# [Observe] Test coverage at 75% (below 80% target)
+# [Orient] Risk: Quality gate may fail
+# [Decide] Add testing step before proceeding
+# [Act] Spawning additional tester agent
+#
+# Quality gate passed with 96.5% coverage
+```
+
+**Pattern 3: GOAP + Memory Coordination**
+```bash
+# GOAP uses memory for cross-task optimization
+/task-create --title "Add OAuth2 authentication"
+
+# GOAP Memory Lookup:
+# ├─ Found: authentication-pattern from task #42
+# ├─ Confidence: 94%
+# ├─ Adaptation: Reuse JWT base, add OAuth2 flow
+# └─ Cost reduction: 20% (using learned pattern)
+#
+# Pattern applied automatically from memory
+```
+
+### Troubleshooting Phase 2
+
+**Issue: GOAP planning timeout**
+```bash
+# Symptom: Planning takes too long
+# Solution: Increase timeout or simplify task
+
+# Check current config
+cat .tasksentinel/goap.json
+
+# Increase timeout
+{
+  "planningTimeout": 60000  # 60s instead of 30s
+}
+
+# Or break task into smaller subtasks
+```
+
+**Issue: Excessive replanning**
+```bash
+# Symptom: Too many OODA replans
+# Solution: Increase replan threshold
+
+# Edit OODA config
+{
+  "replanThreshold": 0.25,  # Require 25% improvement
+  "minReplanInterval": 300000  # 5min cooldown
+}
+```
+
+**Issue: OODA observation overload**
+```bash
+# Symptom: Too many observations slowing system
+# Solution: Reduce frequency or filter sources
+
+# Edit OODA config
+{
+  "observationInterval": 60000,  # Every 1min instead of 30s
+  "observationSources": ["git", "tests"],  # Only critical sources
+  "priorityFilter": "high"  # Only high-priority observations
+}
+```
+
+### Advanced Phase 2 Features
+
+**Custom GOAP Actions:**
+```bash
+# Define custom actions for specialized workflows
+# See: docs/api/goap.md for ActionBuilder API
+
+# Example: Add custom deployment action
+# Task Sentinel will incorporate into GOAP plans
+```
+
+**Custom OODA Observers:**
+```bash
+# Add domain-specific observers
+# See: docs/api/ooda.md for ObservationSource API
+
+# Example: Add performance monitoring observer
+# OODA will include in decision making
+```
+
+**Neural Pattern Training:**
+```bash
+# View learned patterns
+npx claude-flow@alpha neural patterns
+
+# Output:
+# Learned Patterns (12):
+# 1. authentication-integration (94.2% confidence)
+#    - Applied: 8 times
+#    - Avg savings: 28%
+# 2. rest-api-implementation (89.5% confidence)
+#    - Applied: 12 times
+#    - Avg savings: 15%
+# ...
+
+# Export patterns
+npx claude-flow@alpha neural export --output patterns.json
+
+# Train on specific task
+npx claude-flow@alpha neural train --task-id 42
+```
+
+For complete Phase 2 documentation:
+- **Guide**: [Phase 2 Guide](/docs/phase2_guide.md)
+- **GOAP API**: [GOAP API Reference](/docs/api/goap.md)
+- **OODA API**: [OODA API Reference](/docs/api/ooda.md)
+- **Metrics**: [Metrics API Reference](/docs/api/metrics.md)
+
+---
+
 ## Advanced Features
 
 ### 1. Distributed Locking
