@@ -112,9 +112,11 @@ export class OODAMonitor {
   private currentCycleId: string | null = null;
   private globalStartTime: number;
   private readonly maxStoredCycles: number;
+  private readonly maxStoredDecisions: number;
 
-  constructor(maxStoredCycles: number = 1000) {
+  constructor(maxStoredCycles: number = 1000, maxStoredDecisions: number = 1000) {
     this.maxStoredCycles = maxStoredCycles;
+    this.maxStoredDecisions = maxStoredDecisions;
     this.globalStartTime = Date.now();
   }
 
@@ -236,6 +238,7 @@ export class OODAMonitor {
     };
 
     this.decisions.push(decisionRecord);
+    this.evictOldDecisions();
   }
 
   /**
@@ -408,6 +411,17 @@ export class OODAMonitor {
 
     const toRemove = sortedCycles.slice(0, this.cycles.size - this.maxStoredCycles);
     toRemove.forEach(([id]) => this.cycles.delete(id));
+  }
+
+  /**
+   * Evict oldest decisions when limit is exceeded
+   */
+  private evictOldDecisions(): void {
+    if (this.decisions.length <= this.maxStoredDecisions) return;
+
+    // Remove oldest decisions (FIFO - First In First Out)
+    const toRemove = this.decisions.length - this.maxStoredDecisions;
+    this.decisions.splice(0, toRemove);
   }
 
   private calculatePhaseMetrics(cycles: OODACycleMetrics[]): OODAMetrics['phaseMetrics'] {
