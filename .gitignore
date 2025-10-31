@@ -38,3 +38,13 @@ logs/
 tmp/
 temp/
 *.tmp
+
+# Claude Flow runtime files
+.claude-flow/metrics/
+.claude-flow/cache/
+
+# Swarm runtime files (SQLite databases)
+.swarm/
+*.db
+*.db-shm
+*.db-wal
