@@ -1,0 +1,34 @@
+{
+  "security_scanner": {
+    "version": "1.0.0",
+    "enabled": true,
+    "config": {
+      "include_dependencies": true,
+      "include_code_analysis": true,
+      "include_secret_detection": true,
+      "scan_git_history": false,
+      "max_file_size": 1048576,
+      "exclude_patterns": [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/build/**",
+        "**/coverage/**",
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "**/*.min.js",
+        "**/*.map"
+      ],
+      "severity_threshold": "low"
+    },
+    "quality_gates": {
+      "max_critical": 0,
+      "max_high": 5,
+      "max_medium": 20,
+      "max_low": 50,
+      "allow_secrets": false,
+      "require_dependency_fixes": true
+    },
+    "report_formats": ["json", "markdown", "sarif"],
+    "output_directory": "security-reports"
+  }
+}

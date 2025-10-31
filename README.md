@@ -175,6 +175,19 @@ Task Sentinel leverages **54 existing Claude Code agents** organized by pattern:
 - 📚 [Implementation Plan](docs/task_sentinel_implementation_plan.md) - **Comprehensive 6-week implementation plan with OODA+GOAP integration**
 - 📖 [Original Plan](docs/task_sentinel_plan.md) - Original Task Sentinel design document
 - 🚀 [Setup Instructions](docs/setup_instructions.md) - Complete setup guide
+- 🔒 [Distributed Locking Guide](docs/distributed-locking.md) - **Complete guide to distributed locking system**
+- 🏗️ [Lock Design ADR](docs/architecture/distributed-lock-design.md) - Architecture decision record for distributed locks
+
+### Phase 3 Distributed Execution Documentation
+
+- 📘 [Phase 3 Overview Guide](docs/phase3_guide.md) - **Complete distributed execution guide**
+- 🔧 [Distributed API Reference](docs/api/distributed.md) - **Comprehensive API documentation**
+- 📐 [Architecture Diagrams](docs/diagrams/architecture.md) - **Visual system architecture**
+- 🚀 [Deployment Guides](docs/deployment/) - **Step-by-step deployment instructions**
+  - [Single Worker Deployment](docs/deployment/single-worker.md)
+  - [Multiple Worker Deployment](docs/deployment/multi-worker.md)
+  - [GitHub Actions Deployment](docs/deployment/github-actions.md)
+  - [Docker Deployment](docs/deployment/docker.md)
 
 ### Key Sections in Implementation Plan
 
@@ -198,10 +211,17 @@ Task Sentinel leverages **54 existing Claude Code agents** organized by pattern:
 
 ### Distributed Locking
 
-- **Atomic Operations** - GitHub issue assignment as distributed lock
-- **Heartbeat Monitoring** - Automated keepalive every 5 minutes
-- **Stale Lock Detection** - Automatic removal after 10 minutes of inactivity
-- **Lock Metadata** - Worker ID, node ID, timestamp tracked
+Task Sentinel implements a robust distributed locking system using GitHub Issues as the coordination mechanism:
+
+- **Atomic Operations** - GitHub issue assignment as distributed lock primitive
+- **Heartbeat Monitoring** - Automated keepalive every 30 seconds
+- **Stale Lock Detection** - Automatic removal after 5 minutes of inactivity
+- **Conflict Resolution** - Multiple strategies: RETRY (exponential backoff), FAIL_FAST, STEAL_STALE
+- **Lock Metadata** - Worker ID, node ID, timestamps, and task info tracked in GitHub comments
+- **Retry Logic** - Exponential backoff: 1s, 2s, 4s, 8s, 16s (max 5 retries)
+- **Metrics Tracking** - Comprehensive monitoring of acquisitions, conflicts, and performance
+
+📚 **Documentation**: See [Distributed Locking Guide](docs/distributed-locking.md) for detailed usage
 
 ### Quality Assurance
 
@@ -231,10 +251,19 @@ Task Sentinel leverages **54 existing Claude Code agents** organized by pattern:
 - [ ] OODA loop implementation
 - [ ] Adaptive replanning
 
-### Phase 3: Distributed Execution (Week 3) - 🟡 Planned
-- [ ] Distributed locking
-- [ ] Worker coordination
-- [ ] Memory synchronization
+### Phase 3: Distributed Execution (Week 3) - 🟢 In Progress
+- [x] Distributed locking system with GitHub Issues
+- [x] Lock acquisition with exponential backoff retry
+- [x] Heartbeat monitoring for stale lock detection
+- [x] Conflict resolution strategies (RETRY, FAIL_FAST, STEAL_STALE)
+- [x] Comprehensive metrics and monitoring
+- [x] Complete Phase 3 documentation suite
+- [x] API reference for all distributed components
+- [x] Architecture diagrams and visualizations
+- [x] Deployment guides (single, multi, GitHub Actions, Docker)
+- [ ] Worker coordination implementation
+- [ ] Memory synchronization implementation
+- [ ] Load balancing implementation
 
 ### Phase 4: Quality Assurance (Week 4) - 🟡 Planned
 - [ ] Agentic QE integration
