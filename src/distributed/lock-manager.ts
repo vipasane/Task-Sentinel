@@ -177,6 +177,11 @@ export class LockManager {
         // Update metrics
         this.metrics.totalAcquisitions++;
         const acquisitionTime = Date.now() - startTime;
+
+        // Prevent memory leak: trim array before push (not after)
+        if (this.acquisitionTimes.length >= 100) {
+          this.acquisitionTimes.shift(); // Remove oldest
+        }
         this.acquisitionTimes.push(acquisitionTime);
         this.updateAverageAcquisitionTime();
 
