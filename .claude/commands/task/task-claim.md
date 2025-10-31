@@ -71,11 +71,28 @@ Claim and execute task using OODA loop methodology with distributed agent coordi
 
 3. **Start Heartbeat Monitoring:**
    ```bash
-   # Initialize heartbeat in background
-   npx claude-flow@alpha hooks heartbeat-start \
+   # Initialize heartbeat in background with retry logic
+   if ! npx claude-flow@alpha hooks heartbeat-start \
      --task-id "[issue-number]" \
      --interval 60 \
-     --callback "update-task-progress"
+     --callback "update-task-progress"; then
+     echo "❌ Heartbeat failed to start, retrying..."
+     sleep 2
+     npx claude-flow@alpha hooks heartbeat-start \
+       --task-id "[issue-number]" \
+       --interval 60 \
+       --callback "update-task-progress" || {
+       echo "❌ Heartbeat startup failed after retry"
+       # Update task status to failed
+       gh issue edit "[issue-number]" --remove-label "status:in-progress" --add-label "status:error"
+       gh issue comment "[issue-number]" --body "⚠️ **Heartbeat Monitor Failed**
+
+Unable to start heartbeat monitoring after retry.
+Task status updated to error. Manual intervention required."
+       exit 1
+     }
+   fi
+   echo "✅ Heartbeat monitoring active"
    ```
 
 4. **Update Progress Tracking:**

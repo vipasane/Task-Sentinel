@@ -165,7 +165,7 @@ export class ObserveSystem {
         per_page: 100
       });
 
-      return issues.map(issue => this.mapIssueToTask(issue));
+      return issues.map((issue: any) => this.mapIssueToTask(issue));
     } catch (error) {
       console.error('Failed to check ready tasks:', error);
       return [];
@@ -315,7 +315,6 @@ export class ObserveSystem {
     tasks: TaskObservation[]
   ): SystemObservation['systemHealth'] {
     const activeWorkers = workers.filter(w => w.state !== 'offline').length;
-    const busyWorkers = workers.filter(w => w.state === 'busy').length;
 
     // Calculate average wait time based on queue depth and worker capacity
     const totalCapacity = workers.reduce((sum, w) =>

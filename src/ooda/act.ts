@@ -464,8 +464,8 @@ The OODA loop has analyzed this task and is deploying agents for execution.`;
   private async spawnAgent(
     agentType: string,
     workerId: string,
-    role: string,
-    topology: string
+    _role: string,
+    _topology: string
   ): Promise<AgentDeployment> {
     // This would integrate with Claude Flow agent spawning
     // For now, simulate agent spawn
@@ -549,7 +549,7 @@ The OODA loop has analyzed this task and is deploying agents for execution.`;
     execution.metrics.cpuUsed = Math.min(execution.metrics.cpuUsed + 15, 100);
   }
 
-  private async getAgentProgress(agentId: string): Promise<number> {
+  private async getAgentProgress(_agentId: string): Promise<number> {
     // This would query actual agent progress
     // For now, return simulated progress
     return Math.random() * 100;

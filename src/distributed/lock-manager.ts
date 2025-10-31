@@ -46,6 +46,7 @@ export class LockManager {
     staleLocksClaimed: 0
   };
   private acquisitionTimes: number[] = [];
+  private signalHandlersRegistered = false;
 
   constructor(config: Partial<LockConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -53,6 +54,9 @@ export class LockManager {
     if (!this.config.githubRepo) {
       throw new Error('GitHub repository must be specified in config');
     }
+
+    // Setup signal handlers for graceful shutdown
+    this.setupSignalHandlers();
 
     this.githubClient = new GitHubClient(this.config.githubRepo);
   }
@@ -420,7 +424,7 @@ export class LockManager {
    */
   private async storeLockInMemory(
     issueNumber: number,
-    metadata: LockMetadata
+    _metadata: LockMetadata
   ): Promise<void> {
     // MCP memory integration would go here
     // For now, just log
@@ -497,13 +501,38 @@ export class LockManager {
   }
 
   /**
+   * Setup signal handlers for graceful shutdown
+   */
+  private setupSignalHandlers(): void {
+    // Prevent duplicate registration
+    if (this.signalHandlersRegistered) return;
+    this.signalHandlersRegistered = true;
+
+    const cleanup = async (signal: string) => {
+      console.log(`[LockManager] Received ${signal}, cleaning up...`);
+      try {
+        this.destroy();
+        console.log('[LockManager] Cleanup completed');
+      } catch (error) {
+        console.error('[LockManager] Error during cleanup:', error);
+      }
+    };
+
+    // Handle termination signals
+    process.on('SIGTERM', () => cleanup('SIGTERM'));
+    process.on('SIGINT', () => cleanup('SIGINT'));
+    process.on('SIGHUP', () => cleanup('SIGHUP'));
+  }
+
+  /**
    * Clean up all resources
    */
   destroy(): void {
     // Stop all heartbeats
-    for (const [lockId, interval] of this.heartbeatIntervals.entries()) {
+    for (const [_lockId, interval] of this.heartbeatIntervals.entries()) {
       clearInterval(interval);
     }
     this.heartbeatIntervals.clear();
+    console.log('[LockManager] All resources cleaned up');
   }
 }
