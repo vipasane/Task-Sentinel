@@ -193,7 +193,6 @@ class ConflictResolvers {
    */
   static maxValue(entries: MemoryEntry<number>[]): ConflictResolution<number> {
     const max = Math.max(...entries.map(e => e.value));
-    const winner = entries.find(e => e.value === max)!;
     const discarded = entries.filter(e => e.value !== max);
 
     return {
@@ -745,13 +744,13 @@ export class MemorySyncManager extends EventEmitter {
   // MCP Integration (Simulated)
   // ==========================================================================
 
-  private async mcpRead<T>(key: string): Promise<T | null> {
+  private async mcpRead<T>(_key: string): Promise<T | null> {
     // In real implementation, this would call MCP memory_usage tool
     // For now, return null to simulate empty memory
     return null;
   }
 
-  private async mcpWrite(key: string, entry: MemoryEntry): Promise<void> {
+  private async mcpWrite(_key: string, _entry: MemoryEntry): Promise<void> {
     // In real implementation, this would call MCP memory_usage tool
     // mcp__claude-flow__memory_usage({
     //   action: 'store',
@@ -762,7 +761,7 @@ export class MemorySyncManager extends EventEmitter {
     // })
   }
 
-  private async mcpDelete(key: string): Promise<void> {
+  private async mcpDelete(_key: string): Promise<void> {
     // In real implementation, this would call MCP memory_usage tool
     // mcp__claude-flow__memory_usage({
     //   action: 'delete',
@@ -771,7 +770,7 @@ export class MemorySyncManager extends EventEmitter {
     // })
   }
 
-  private async mcpSearch(pattern: string): Promise<string[]> {
+  private async mcpSearch(_pattern: string): Promise<string[]> {
     // In real implementation, this would call MCP memory_usage tool
     // mcp__claude-flow__memory_usage({
     //   action: 'search',

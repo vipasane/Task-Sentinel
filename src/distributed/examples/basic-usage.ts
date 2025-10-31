@@ -288,7 +288,7 @@ async function multiWorkerExample() {
   }
 
   // Normal worker tries with retry
-  const normalResult = await normalWorker.acquireLock(issueNumber + 1, {
+  await normalWorker.acquireLock(issueNumber + 1, {
     workerId: 'worker-normal',
     nodeId: 'node-normal',
     taskInfo: {
@@ -300,7 +300,7 @@ async function multiWorkerExample() {
   });
 
   // Low-priority worker tries with fail-fast
-  const lowPriResult = await lowPriorityWorker.acquireLock(issueNumber + 2, {
+  await lowPriorityWorker.acquireLock(issueNumber + 2, {
     workerId: 'worker-low-pri',
     nodeId: 'node-low',
     taskInfo: {

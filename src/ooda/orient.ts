@@ -123,7 +123,7 @@ export class OrientSystem {
   public async orient(
     task: TaskObservation,
     workers: WorkerStatus[],
-    memoryState: MemoryState
+    _memoryState: MemoryState
   ): Promise<OrientationDecision> {
     const startTime = Date.now();
 
@@ -235,10 +235,9 @@ export class OrientSystem {
    */
   public selectStrategy(
     complexity: ComplexityAnalysis,
-    workers: WorkerStatus[],
-    context: TaskContext
+    _workers: WorkerStatus[],
+    _context: TaskContext
   ): ExecutionStrategy {
-    const availableWorkers = workers.filter(w => w.state !== 'offline').length;
 
     // Strategy selection based on complexity and resources
     if (complexity.category === 'trivial') {
@@ -309,9 +308,9 @@ export class OrientSystem {
    */
   public determineAgents(
     complexity: ComplexityAnalysis,
-    strategy: ExecutionStrategy,
+    _strategy: ExecutionStrategy,
     task: TaskObservation,
-    workers: WorkerStatus[]
+    _workers: WorkerStatus[]
   ): AgentRequirements {
     const agents: AgentRequirements['agents'] = [];
 
@@ -532,7 +531,7 @@ export class OrientSystem {
   }
 
   private buildReasoning(
-    task: TaskObservation,
+    _task: TaskObservation,
     complexity: ComplexityAnalysis,
     strategy: ExecutionStrategy,
     requirements: AgentRequirements,

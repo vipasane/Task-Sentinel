@@ -407,7 +407,7 @@ export class LockManager {
    */
   private async storeLockInMemory(
     issueNumber: number,
-    metadata: LockMetadata
+    _metadata: LockMetadata
   ): Promise<void> {
     // MCP memory integration would go here
     // For now, just log
@@ -512,7 +512,7 @@ export class LockManager {
    */
   destroy(): void {
     // Stop all heartbeats
-    for (const [lockId, interval] of this.heartbeatIntervals.entries()) {
+    for (const [_lockId, interval] of this.heartbeatIntervals.entries()) {
       clearInterval(interval);
     }
     this.heartbeatIntervals.clear();

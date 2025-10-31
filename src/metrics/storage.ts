@@ -299,7 +299,7 @@ export class MetricsStorage {
   /**
    * Store data in MCP memory
    */
-  private async storeInMemory(key: string, value: any): Promise<void> {
+  private async storeInMemory(key: string, _value: any): Promise<void> {
     // This would integrate with MCP tools in production:
     // await mcp__claude-flow__memory_usage({
     //   action: 'store',
