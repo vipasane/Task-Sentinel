@@ -55,7 +55,6 @@ export class OODALoop {
   private config: Required<OODALoopConfig>;
   private running: boolean = false;
   private intervalHandle: NodeJS.Timeout | null = null;
-  private currentCycleId: string | null = null;
 
   private status: OODALoopStatus = {
     running: false,
@@ -143,7 +142,6 @@ export class OODALoop {
     if (!this.running) return;
 
     const cycleId = this.monitor.startCycle();
-    this.currentCycleId = cycleId;
     this.status.currentCycleId = cycleId;
 
     try {
@@ -251,7 +249,6 @@ export class OODALoop {
       this.monitor.endCycle(true, cycleId);
       this.status.cyclesCompleted++;
       this.status.currentPhase = null;
-      this.currentCycleId = null;
 
       console.log(`OODA cycle ${cycleId} completed successfully`);
 
@@ -276,7 +273,6 @@ export class OODALoop {
 
       this.monitor.endCycle(false, cycleId);
       this.status.currentPhase = null;
-      this.currentCycleId = null;
     }
   }
 

@@ -178,6 +178,7 @@ export class HeartbeatMonitor {
   private metrics: WorkerMetrics;
   private is_running: boolean;
   private github_repo: string;
+  private signalHandlersRegistered = false;
 
   constructor(
     worker_id: string,
@@ -208,6 +209,9 @@ export class HeartbeatMonitor {
       tasks_failed: 0,
       uptime: 0,
     };
+
+    // Setup signal handlers for graceful shutdown
+    this.setupSignalHandlers();
 
     console.log(`[HeartbeatMonitor] Initialized for worker: ${worker_id}`);
   }
@@ -786,6 +790,30 @@ Available Capacity: ${heartbeat.capacity_available}
     } catch (error) {
       console.error('[HeartbeatMonitor] Failed to record lock recovery metrics:', error);
     }
+  }
+
+  /**
+   * Setup signal handlers for graceful shutdown
+   */
+  private setupSignalHandlers(): void {
+    // Prevent duplicate registration
+    if (this.signalHandlersRegistered) return;
+    this.signalHandlersRegistered = true;
+
+    const cleanup = async (signal: string) => {
+      console.log(`[HeartbeatMonitor] Received ${signal}, cleaning up...`);
+      try {
+        await this.stop();
+        console.log('[HeartbeatMonitor] Cleanup completed');
+      } catch (error) {
+        console.error('[HeartbeatMonitor] Error during cleanup:', error);
+      }
+    };
+
+    // Handle termination signals
+    process.on('SIGTERM', () => cleanup('SIGTERM'));
+    process.on('SIGINT', () => cleanup('SIGINT'));
+    process.on('SIGHUP', () => cleanup('SIGHUP'));
   }
 
   /**

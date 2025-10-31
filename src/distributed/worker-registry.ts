@@ -85,6 +85,7 @@ export class WorkerRegistry {
   private degradedThreshold: number;
   private cleanupInterval: number;
   private cleanupTimer: NodeJS.Timeout | null = null;
+  private signalHandlersRegistered = false;
 
   private readonly WORKER_KEY_PREFIX = 'task-sentinel/workers';
 
@@ -94,6 +95,9 @@ export class WorkerRegistry {
     this.healthyThreshold = config.healthyThreshold || 10 * 60 * 1000; // 10 minutes
     this.degradedThreshold = config.degradedThreshold || 15 * 60 * 1000; // 15 minutes
     this.cleanupInterval = config.cleanupInterval || 5 * 60 * 1000; // 5 minutes
+
+    // Setup signal handlers for graceful shutdown
+    this.setupSignalHandlers();
   }
 
   /**
@@ -361,6 +365,30 @@ export class WorkerRegistry {
       workerId,
       timestamp: new Date(),
     });
+  }
+
+  /**
+   * Setup signal handlers for graceful shutdown
+   */
+  private setupSignalHandlers(): void {
+    // Prevent duplicate registration
+    if (this.signalHandlersRegistered) return;
+    this.signalHandlersRegistered = true;
+
+    const cleanup = async (signal: string) => {
+      console.log(`[WorkerRegistry] Received ${signal}, cleaning up...`);
+      try {
+        this.stopCleanup();
+        console.log('[WorkerRegistry] Cleanup completed');
+      } catch (error) {
+        console.error('[WorkerRegistry] Error during cleanup:', error);
+      }
+    };
+
+    // Handle termination signals
+    process.on('SIGTERM', () => cleanup('SIGTERM'));
+    process.on('SIGINT', () => cleanup('SIGINT'));
+    process.on('SIGHUP', () => cleanup('SIGHUP'));
   }
 
   /**

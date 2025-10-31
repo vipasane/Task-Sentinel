@@ -12,7 +12,6 @@ import {
   SystemMetric,
   OODACycleMetric,
   MetricsSummary,
-  MetricsAggregation,
   MetricsExport,
   MetricsQuery
 } from './types.js';
@@ -740,11 +739,10 @@ export class MetricsCollector {
     return rows.join('\n');
   }
 
-  private async storeMetric(category: string, metric: any): Promise<void> {
+  private async storeMetric(category: string, _metric: any): Promise<void> {
     // This method would integrate with MCP memory tools
     // For now, it's a placeholder for the storage interface
     const key = `${this.namespace}/${category}/${Date.now()}`;
-    const ttlSeconds = this.TTL_DAYS * 24 * 60 * 60;
 
     // In a real implementation, this would call:
     // await mcp__claude-flow__memory_usage({

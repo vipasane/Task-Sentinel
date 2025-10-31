@@ -217,7 +217,7 @@ export class PerformanceBasedStrategy implements BalancingStrategy {
 
   private scorePerformance(
     worker: WorkerInfo,
-    task: TaskRequirements,
+    _task: TaskRequirements,
     context?: BalancingContext
   ): number {
     const metrics = worker.metrics;
@@ -270,7 +270,7 @@ export class AdaptiveStrategy implements BalancingStrategy {
   >();
 
   constructor() {
-    this.strategies = new Map([
+    this.strategies = new Map<string, BalancingStrategy>([
       ['performance', new PerformanceBasedStrategy()],
       ['capability', new CapabilityBasedStrategy()],
       ['least-loaded', new LeastLoadedStrategy()],
@@ -333,7 +333,6 @@ export class AdaptiveStrategy implements BalancingStrategy {
   }
 
   private rebalanceWeights(): void {
-    const totalWeight = 1.0;
     let sumSuccessRates = 0;
 
     const successRates = new Map<string, number>();
@@ -424,7 +423,7 @@ export class LoadBalancer {
     if (filtered.length === 0) return null;
 
     // Use current strategy to select
-    return this.currentStrategy.selectWorker(filtered, task, this.context);
+    return this.currentStrategy.selectWorker(task, filtered, this.context);
   }
 
   /**
@@ -587,7 +586,7 @@ export class LoadBalancer {
    */
   suggestMigration(
     workers: WorkerInfo[],
-    taskQueue: Array<{ id: string; requirements: TaskRequirements }>
+    _taskQueue: Array<{ id: string; requirements: TaskRequirements }>
   ): RebalanceRecommendation[] {
     const recommendations: RebalanceRecommendation[] = [];
 
@@ -658,7 +657,7 @@ export class LoadBalancer {
     workerId: string,
     taskType: string,
     success: boolean,
-    duration: number
+    _duration: number
   ): void {
     // Update task history
     if (!this.context.taskHistory) {

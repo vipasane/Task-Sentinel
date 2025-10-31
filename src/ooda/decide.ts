@@ -3,7 +3,7 @@
  * Makes execution decisions based on orientation analysis
  */
 
-import { OrientationDecision, AgentRequirements, ExecutionStrategy } from './orient';
+import { OrientationDecision, ExecutionStrategy } from './orient';
 import { WorkerStatus } from './observe';
 
 /**
@@ -209,7 +209,7 @@ export class DecideSystem {
    */
   public calculateExecutionCost(
     plan: ExecutionPlan,
-    resources: ResourceAvailability
+    _resources: ResourceAvailability
   ): ExecutionPlan['estimatedCost'] {
     const baseApiCalls = 10;
     const agentCount = plan.agentAssignments.length;
@@ -327,7 +327,7 @@ export class DecideSystem {
   /**
    * Record execution outcome
    */
-  public recordOutcome(decisionId: string, success: boolean): void {
+  public recordOutcome(_decisionId: string, success: boolean): void {
     if (success) {
       this.metrics.successfulExecutions++;
     } else {
@@ -406,7 +406,7 @@ export class DecideSystem {
   ): ExecutionPlan {
     const agentAssignments = orientation.agentRequirements.agents
       .slice(0, Math.min(strategy.expectedAgents, resources.availableWorkers + 2))
-      .map((agent, index) => ({
+      .map((agent, _index) => ({
         agentType: agent.type,
         workerId: '',
         role: agent.role,
@@ -610,7 +610,7 @@ export class DecideSystem {
   }
 
   private buildRationale(
-    orientation: OrientationDecision,
+    _orientation: OrientationDecision,
     plan: ExecutionPlan,
     alternatives: ExecutionPlan[],
     resources: ResourceAvailability

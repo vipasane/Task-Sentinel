@@ -46,6 +46,7 @@ export class LockManager {
     staleLocksClaimed: 0
   };
   private acquisitionTimes: number[] = [];
+  private signalHandlersRegistered = false;
 
   constructor(config: Partial<LockConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -53,6 +54,9 @@ export class LockManager {
     if (!this.config.githubRepo) {
       throw new Error('GitHub repository must be specified in config');
     }
+
+    // Setup signal handlers for graceful shutdown
+    this.setupSignalHandlers();
 
     this.githubClient = new GitHubClient(this.config.githubRepo);
   }
@@ -77,67 +81,79 @@ export class LockManager {
 
     while (retries <= maxRetries) {
       try {
-        // Check current lock status
-        const status = await this.getLockStatus(issueNumber);
-
-        // If locked, check if we can steal it (stale lock)
-        if (status.isLocked) {
-          if (strategy === ConflictStrategy.STEAL_STALE) {
-            const canSteal = await this.isLockStale(status);
-            if (canSteal) {
-              console.log(`Stealing stale lock on issue #${issueNumber}`);
-              await this.forceRelease(issueNumber, status.assignee!);
-              this.metrics.staleLocksClaimed++;
-            } else {
-              throw new Error(`Issue #${issueNumber} is locked by ${status.assignee}`);
-            }
-          } else if (strategy === ConflictStrategy.FAIL_FAST) {
-            return {
-              success: false,
-              lockId: issueNumber.toString(),
-              error: `Issue already locked by ${status.assignee}`,
-              retries
-            };
-          } else {
-            // RETRY strategy
-            if (retries === maxRetries) {
-              this.metrics.failedAcquisitions++;
-              return {
-                success: false,
-                lockId: issueNumber.toString(),
-                error: `Failed to acquire lock after ${maxRetries} retries`,
-                retries
-              };
-            }
-
-            this.metrics.totalConflicts++;
-            console.log(`Conflict on issue #${issueNumber}, retry ${retries + 1}/${maxRetries}`);
-            await this.sleep(backoffMs);
-            backoffMs = Math.min(backoffMs * 2, this.config.maxBackoffMs);
-            retries++;
-            this.metrics.totalRetries++;
-            continue;
-          }
-        }
-
-        // Attempt to acquire lock
+        // Optimistic locking with compare-and-swap pattern
         const username = await this.githubClient.getUsername();
+
+        // Attempt to acquire lock immediately (optimistic approach)
         const assigned = await this.githubClient.assignIssue(issueNumber, username);
 
         if (!assigned) {
-          // Race condition - someone else got it
+          // Lock assignment failed - could be race condition or already locked
+          // Verify the current state
+          const status = await this.getLockStatus(issueNumber);
+
+          if (status.isLocked && status.assignee !== username) {
+            // Someone else has the lock
+            if (strategy === ConflictStrategy.STEAL_STALE) {
+              const canSteal = await this.isLockStale(status);
+              if (canSteal) {
+                console.log(`Stealing stale lock on issue #${issueNumber}`);
+                await this.forceRelease(issueNumber, status.assignee!);
+                this.metrics.staleLocksClaimed++;
+                // Retry acquisition after stealing
+                await this.sleep(100); // Brief pause to ensure state propagated
+                retries++;
+                continue;
+              } else {
+                throw new Error(`Issue #${issueNumber} is locked by ${status.assignee}`);
+              }
+            } else if (strategy === ConflictStrategy.FAIL_FAST) {
+              return {
+                success: false,
+                lockId: issueNumber.toString(),
+                error: `Issue already locked by ${status.assignee}`,
+                retries
+              };
+            } else {
+              // RETRY strategy
+              if (retries === maxRetries) {
+                this.metrics.failedAcquisitions++;
+                return {
+                  success: false,
+                  lockId: issueNumber.toString(),
+                  error: `Failed to acquire lock after ${maxRetries} retries`,
+                  retries
+                };
+              }
+
+              this.metrics.totalConflicts++;
+              console.log(`Conflict on issue #${issueNumber}, retry ${retries + 1}/${maxRetries}`);
+              await this.sleep(backoffMs);
+              backoffMs = Math.min(backoffMs * 2, this.config.maxBackoffMs);
+              retries++;
+              this.metrics.totalRetries++;
+              continue;
+            }
+          }
+        }
+
+        // Verify we actually got the lock (CAS verification step)
+        const verifyStatus = await this.getLockStatus(issueNumber);
+        if (!verifyStatus.isLocked || verifyStatus.assignee !== username) {
+          // Race condition detected - assignment succeeded but we don't have the lock
+          // This can happen if GitHub had a brief inconsistency
           if (retries === maxRetries) {
             this.metrics.failedAcquisitions++;
             return {
               success: false,
               lockId: issueNumber.toString(),
-              error: 'Failed to acquire lock due to race condition',
+              error: 'Failed to acquire lock due to verification failure',
               retries
             };
           }
 
           this.metrics.totalConflicts++;
-          console.log(`Race condition on issue #${issueNumber}, retry ${retries + 1}/${maxRetries}`);
+          console.log(`Lock verification failed on issue #${issueNumber}, retry ${retries + 1}/${maxRetries}`);
           await this.sleep(backoffMs);
           backoffMs = Math.min(backoffMs * 2, this.config.maxBackoffMs);
           retries++;
@@ -165,6 +181,11 @@ export class LockManager {
         // Update metrics
         this.metrics.totalAcquisitions++;
         const acquisitionTime = Date.now() - startTime;
+
+        // Prevent memory leak: trim array before push (not after)
+        if (this.acquisitionTimes.length >= 100) {
+          this.acquisitionTimes.shift(); // Remove oldest
+        }
         this.acquisitionTimes.push(acquisitionTime);
         this.updateAverageAcquisitionTime();
 
@@ -403,7 +424,7 @@ export class LockManager {
    */
   private async storeLockInMemory(
     issueNumber: number,
-    metadata: LockMetadata
+    _metadata: LockMetadata
   ): Promise<void> {
     // MCP memory integration would go here
     // For now, just log
@@ -480,13 +501,38 @@ export class LockManager {
   }
 
   /**
+   * Setup signal handlers for graceful shutdown
+   */
+  private setupSignalHandlers(): void {
+    // Prevent duplicate registration
+    if (this.signalHandlersRegistered) return;
+    this.signalHandlersRegistered = true;
+
+    const cleanup = async (signal: string) => {
+      console.log(`[LockManager] Received ${signal}, cleaning up...`);
+      try {
+        this.destroy();
+        console.log('[LockManager] Cleanup completed');
+      } catch (error) {
+        console.error('[LockManager] Error during cleanup:', error);
+      }
+    };
+
+    // Handle termination signals
+    process.on('SIGTERM', () => cleanup('SIGTERM'));
+    process.on('SIGINT', () => cleanup('SIGINT'));
+    process.on('SIGHUP', () => cleanup('SIGHUP'));
+  }
+
+  /**
    * Clean up all resources
    */
   destroy(): void {
     // Stop all heartbeats
-    for (const [lockId, interval] of this.heartbeatIntervals.entries()) {
+    for (const [_lockId, interval] of this.heartbeatIntervals.entries()) {
       clearInterval(interval);
     }
     this.heartbeatIntervals.clear();
+    console.log('[LockManager] All resources cleaned up');
   }
 }
