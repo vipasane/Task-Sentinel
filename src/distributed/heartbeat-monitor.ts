@@ -9,10 +9,7 @@
  * - Failure handling with retries
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
+import { spawn } from 'child_process';
 
 // ============================================================================
 // Types and Interfaces
@@ -60,6 +57,115 @@ export interface LockRecoveryResult {
 }
 
 // ============================================================================
+// Security Helpers
+// ============================================================================
+
+/**
+ * Input validation to prevent injection attacks
+ */
+function validateInput(value: string, type: 'key' | 'worker_id' | 'task_id' | 'repo'): string {
+  if (!value || typeof value !== 'string') {
+    throw new Error(`Invalid ${type}: must be a non-empty string`);
+  }
+
+  // Remove any shell metacharacters
+  const sanitized = value.replace(/[;&|`$(){}[\]<>]/g, '');
+
+  // Type-specific validation
+  switch (type) {
+    case 'key':
+      // Memory keys should follow pattern: task-sentinel/...
+      if (!/^[a-zA-Z0-9/_-]+$/.test(sanitized)) {
+        throw new Error(`Invalid key format: ${value}`);
+      }
+      break;
+    case 'worker_id':
+    case 'task_id':
+      // IDs should be alphanumeric with hyphens
+      if (!/^[a-zA-Z0-9-]+$/.test(sanitized)) {
+        throw new Error(`Invalid ${type} format: ${value}`);
+      }
+      break;
+    case 'repo':
+      // Repo should be owner/name format
+      if (!/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+$/.test(sanitized)) {
+        throw new Error(`Invalid repository format: ${value}`);
+      }
+      break;
+  }
+
+  return sanitized;
+}
+
+/**
+ * Execute MCP memory command safely using spawn
+ */
+function execMemoryCommand(operation: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('npx', [
+      '@modelcontextprotocol/server-memory',
+      operation,
+      ...args
+    ]);
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve(stdout);
+      } else {
+        reject(new Error(`Memory command failed (${code}): ${stderr}`));
+      }
+    });
+
+    child.on('error', (error) => {
+      reject(error);
+    });
+  });
+}
+
+/**
+ * Execute GitHub CLI command safely using spawn
+ */
+function execGitHubCommand(args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('gh', args);
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve(stdout);
+      } else {
+        reject(new Error(`GitHub command failed (${code}): ${stderr}`));
+      }
+    });
+
+    child.on('error', (error) => {
+      reject(error);
+    });
+  });
+}
+
+// ============================================================================
 // Heartbeat Monitor
 // ============================================================================
 
@@ -78,8 +184,9 @@ export class HeartbeatMonitor {
     github_repo: string,
     config?: Partial<HeartbeatConfig>
   ) {
-    this.worker_id = worker_id;
-    this.github_repo = github_repo;
+    // Validate inputs
+    this.worker_id = validateInput(worker_id, 'worker_id');
+    this.github_repo = validateInput(github_repo, 'repo');
     this.current_tasks = new Set();
     this.is_running = false;
 
@@ -243,9 +350,11 @@ export class HeartbeatMonitor {
     const key = `task-sentinel/workers/${this.worker_id}/heartbeat`;
     const value = JSON.stringify(heartbeat);
 
-    await execAsync(
-      `npx @modelcontextprotocol/server-memory store "${key}" '${value}'`
-    );
+    // Validate key format
+    validateInput(key, 'key');
+
+    // Use safe spawn-based execution
+    await execMemoryCommand('store', [key, value]);
   }
 
   /**
@@ -261,9 +370,16 @@ export class HeartbeatMonitor {
       try {
         const lock = await this.getTaskLock(task_id);
         if (lock && lock.issue_number) {
-          await execAsync(
-            `gh issue comment ${lock.issue_number} --repo ${this.github_repo} --body "${comment}"`
-          );
+          // Use safe spawn-based execution
+          await execGitHubCommand([
+            'issue',
+            'comment',
+            lock.issue_number.toString(),
+            '--repo',
+            this.github_repo,
+            '--body',
+            comment
+          ]);
         }
       } catch (error) {
         console.error(`[HeartbeatMonitor] Failed to comment on task ${task_id}:`, error);
@@ -285,9 +401,11 @@ export class HeartbeatMonitor {
       metrics: heartbeat.metrics,
     });
 
-    await execAsync(
-      `npx @modelcontextprotocol/server-memory store "${metrics_key}" '${metrics_value}'`
-    );
+    // Validate key format
+    validateInput(metrics_key, 'key');
+
+    // Use safe spawn-based execution
+    await execMemoryCommand('store', [metrics_key, metrics_value]);
   }
 
   /**
@@ -394,9 +512,15 @@ export class HeartbeatMonitor {
       }
 
       // 2. Remove assignment
-      await execAsync(
-        `gh issue edit ${lock.issue_number} --remove-assignee ${lock.worker_id} --repo ${this.github_repo}`
-      );
+      await execGitHubCommand([
+        'issue',
+        'edit',
+        lock.issue_number.toString(),
+        '--remove-assignee',
+        validateInput(lock.worker_id, 'worker_id'),
+        '--repo',
+        this.github_repo
+      ]);
 
       // 3. Add recovery comment
       const comment = `⚠️ **Stale Lock Detected**
@@ -410,19 +534,32 @@ Worker \`${lock.worker_id}\` last seen ${this.formatDuration(stale_duration)} ag
 
 Task is now available for other workers to claim.`;
 
-      await execAsync(
-        `gh issue comment ${lock.issue_number} --repo ${this.github_repo} --body "${comment}"`
-      );
+      await execGitHubCommand([
+        'issue',
+        'comment',
+        lock.issue_number.toString(),
+        '--repo',
+        this.github_repo,
+        '--body',
+        comment
+      ]);
 
       // 4. Update task status
-      await execAsync(
-        `gh issue edit ${lock.issue_number} --add-label status:queued --remove-label status:in-progress --repo ${this.github_repo}`
-      );
+      await execGitHubCommand([
+        'issue',
+        'edit',
+        lock.issue_number.toString(),
+        '--add-label',
+        'status:queued',
+        '--remove-label',
+        'status:in-progress',
+        '--repo',
+        this.github_repo
+      ]);
 
       // 5. Clean up memory
-      await execAsync(
-        `npx @modelcontextprotocol/server-memory delete "task-sentinel/tasks/${lock.task_id}/lock"`
-      );
+      const lock_key = `task-sentinel/tasks/${validateInput(lock.task_id, 'task_id')}/lock`;
+      await execMemoryCommand('delete', [lock_key]);
 
       // 6. Update metrics
       await this.recordLockRecovery(lock, stale_duration);
@@ -457,20 +594,15 @@ Task is now available for other workers to claim.`;
    */
   private async getClaimedTasks(): Promise<TaskLock[]> {
     try {
-      const result = await execAsync(
-        `npx @modelcontextprotocol/server-memory list-keys "task-sentinel/tasks/*/lock"`
-      );
+      const result = await execMemoryCommand('list-keys', ['task-sentinel/tasks/*/lock']);
 
-      const keys = result.stdout.trim().split('\n').filter(Boolean);
+      const keys = result.trim().split('\n').filter(Boolean);
       const locks: TaskLock[] = [];
 
       for (const key of keys) {
         try {
-          const lock_result = await execAsync(
-            `npx @modelcontextprotocol/server-memory retrieve "${key}"`
-          );
-
-          const lock = JSON.parse(lock_result.stdout);
+          const lock_result = await execMemoryCommand('retrieve', [key]);
+          const lock = JSON.parse(lock_result);
           locks.push(lock);
         } catch (error) {
           console.error(`[HeartbeatMonitor] Failed to retrieve lock ${key}:`, error);
@@ -489,12 +621,11 @@ Task is now available for other workers to claim.`;
    */
   private async getLastHeartbeat(worker_id: string): Promise<number | null> {
     try {
-      const key = `task-sentinel/workers/${worker_id}/heartbeat`;
-      const result = await execAsync(
-        `npx @modelcontextprotocol/server-memory retrieve "${key}"`
-      );
+      const validated_worker_id = validateInput(worker_id, 'worker_id');
+      const key = `task-sentinel/workers/${validated_worker_id}/heartbeat`;
+      const result = await execMemoryCommand('retrieve', [key]);
 
-      const heartbeat: HeartbeatData = JSON.parse(result.stdout);
+      const heartbeat: HeartbeatData = JSON.parse(result);
       return heartbeat.timestamp;
     } catch (error) {
       console.error(`[HeartbeatMonitor] Failed to get heartbeat for ${worker_id}:`, error);
@@ -507,12 +638,11 @@ Task is now available for other workers to claim.`;
    */
   private async getTaskLock(task_id: string): Promise<TaskLock | null> {
     try {
-      const key = `task-sentinel/tasks/${task_id}/lock`;
-      const result = await execAsync(
-        `npx @modelcontextprotocol/server-memory retrieve "${key}"`
-      );
+      const validated_task_id = validateInput(task_id, 'task_id');
+      const key = `task-sentinel/tasks/${validated_task_id}/lock`;
+      const result = await execMemoryCommand('retrieve', [key]);
 
-      return JSON.parse(result.stdout);
+      return JSON.parse(result);
     } catch (error) {
       return null;
     }
@@ -617,9 +747,11 @@ Available Capacity: ${heartbeat.capacity_available}
         consecutive_failures: this.metrics.tasks_failed + 1,
       };
 
-      await execAsync(
-        `npx @modelcontextprotocol/server-memory store "${failure_key}" '${JSON.stringify(failure_data)}'`
-      );
+      // Validate key format
+      validateInput(failure_key, 'key');
+
+      // Use safe spawn-based execution
+      await execMemoryCommand('store', [failure_key, JSON.stringify(failure_data)]);
 
       // Alert if failures persist
       if (failure_data.consecutive_failures >= 3) {
@@ -646,9 +778,11 @@ Available Capacity: ${heartbeat.capacity_available}
     });
 
     try {
-      await execAsync(
-        `npx @modelcontextprotocol/server-memory store "${metrics_key}" '${metrics_value}'`
-      );
+      // Validate key format
+      validateInput(metrics_key, 'key');
+
+      // Use safe spawn-based execution
+      await execMemoryCommand('store', [metrics_key, metrics_value]);
     } catch (error) {
       console.error('[HeartbeatMonitor] Failed to record lock recovery metrics:', error);
     }
