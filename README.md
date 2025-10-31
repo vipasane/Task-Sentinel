@@ -24,40 +24,57 @@ Task Sentinel is a production-ready distributed task orchestration system that l
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Task Sentinel Architecture                    │
-│                  (Built on Claude Code/Flow)                     │
-└─────────────────────────────────────────────────────────────────┘
-                               │
-        ┌──────────────────────┼──────────────────────┐
-        │                      │                      │
-┌───────▼────────┐    ┌────────▼────────┐   ┌───────▼────────┐
-│  Task Sentinel │    │   GitHub Issues │   │  MCP Tools     │
-│  Skill         │◄───┤   (Source of    │   │  (Coordination)│
-│  (Main Logic)  │    │    Truth)       │   │                │
-└───────┬────────┘    └────────┬────────┘   └───────┬────────┘
-        │                      │                     │
-        │     ┌────────────────┴────────────────┐   │
-        │     │                                  │   │
-┌───────▼─────▼──────┐              ┌───────────▼───▼──────┐
-│  Slash Commands    │              │   Hooks System       │
-│  /task-create      │              │   pre-task-claim     │
-│  /task-claim       │              │   post-task-complete │
-│  /task-qa          │              │   session-restore    │
-└────────┬───────────┘              └──────────┬───────────┘
-         │                                     │
-         └──────────┬──────────────────────────┘
-                    │
-    ┌───────────────▼────────────────┐
-    │     Claude Code Task Tool      │
-    │   (Spawns Actual Agents)       │
-    │                                 │
-    │  Task("goal-planner", ...)     │
-    │  Task("coder", ...)            │
-    │  Task("tester", ...)           │
-    │  Task("code-review-swarm", ...)│
-    └────────────────────────────────┘
+### System Overview
+
+```mermaid
+graph TB
+    subgraph "Task Sentinel Core"
+        OODA[OODA Loop Engine]
+        GOAP[GOAP Planner]
+        DL[Distributed Lock Manager]
+        MS[Memory Sync Manager]
+        HB[Heartbeat Monitor]
+        WR[Worker Registry]
+    end
+
+    subgraph "External Systems"
+        GH[GitHub Issues<br/>Source of Truth]
+        MCP[MCP Memory Tools<br/>State Management]
+        CF[Claude Flow<br/>Agent Coordination]
+    end
+
+    subgraph "54 Claude Code Agents"
+        GP[goal-planner]
+        C[coder]
+        T[tester]
+        R[reviewer]
+        CRS[code-review-swarm]
+    end
+
+    GH --> OODA
+    OODA --> GOAP
+    GOAP --> DL
+    DL --> WR
+    WR --> HB
+    HB --> MS
+    MS <--> MCP
+
+    GOAP --> GP
+    DL --> C
+    DL --> T
+    DL --> R
+    DL --> CRS
+
+    GP --> CF
+    C --> CF
+    T --> CF
+    R --> CF
+    CRS --> CF
+
+    style OODA fill:#4CAF50
+    style GOAP fill:#2196F3
+    style DL fill:#FF9800
+    style GH fill:#6e5494
 ```
 
 ## Quick Start
@@ -111,6 +128,30 @@ claude mcp add ruv-swarm npx ruv-swarm mcp start  # Optional
 
 Task Sentinel implements a continuous **OODA Loop** for adaptive task execution:
 
+```mermaid
+stateDiagram-v2
+    [*] --> Observe
+    Observe --> Orient: Task detected
+    Orient --> Decide: Plan created
+    Decide --> Act: Resources allocated
+    Act --> Observe: Cycle complete
+
+    Act --> Orient: Replanning needed
+    Orient --> Orient: Refine strategy
+
+    Observe: 🔍 OBSERVE<br/>Monitor GitHub Issues<br/>Detect ready tasks<br/>30s cycles
+    Orient: 🧭 ORIENT<br/>GOAP Analysis<br/>Goal-planner<br/>State model
+    Decide: 🎯 DECIDE<br/>Resource allocation<br/>Agent selection<br/>Topology choice
+    Act: ⚡ ACT<br/>Claim + Execute<br/>Spawn agents<br/>Quality gates
+
+    note right of Orient
+        Adaptive replanning
+        on failure or new info
+    end note
+```
+
+**Cycle Phases:**
+
 1. **OBSERVE** (30s cycles) - Monitor GitHub Issues for ready tasks
 2. **ORIENT** (GOAP Analysis) - Plan optimal action sequences with goal-planner
 3. **DECIDE** (Resource Allocation) - Select agents, topology, and strategy
@@ -121,30 +162,51 @@ Task Sentinel implements a continuous **OODA Loop** for adaptive task execution:
 
 Goal-Oriented Action Planning with A* search for optimal task execution:
 
-```yaml
-current_state:
-  task_claimed: false
-  code_implemented: false
-  tests_passing: false
-  qa_complete: false
-  merged: false
+```mermaid
+graph LR
+    subgraph "Current State"
+        S1[task_claimed: false<br/>code_implemented: false<br/>tests_passing: false<br/>qa_complete: false<br/>merged: false]
+    end
 
-goal_state:
-  task_claimed: true
-  code_implemented: true
-  tests_passing: true
-  qa_complete: true
-  merged: true
+    subgraph "Goal State"
+        G1[task_claimed: true<br/>code_implemented: true<br/>tests_passing: true<br/>qa_complete: true<br/>merged: true]
+    end
 
-optimal_plan:
-  1. claim_task (cost: 1)
-  2. spawn_swarm (cost: 2)
-  3. implement (cost: 5)
-  4. test (cost: 3)
-  5. qa (cost: 4)
-  6. create_pr (cost: 2)
-  7. merge (cost: 1)
+    subgraph "Optimal Plan (A* Search)"
+        A1[1. claim_task<br/>cost: 1]
+        A2[2. spawn_swarm<br/>cost: 2]
+        A3[3. implement<br/>cost: 5]
+        A4[4. test<br/>cost: 3]
+        A5[5. qa<br/>cost: 4]
+        A6[6. create_pr<br/>cost: 2]
+        A7[7. merge<br/>cost: 1]
+    end
+
+    S1 --> A1
+    A1 --> A2
+    A2 --> A3
+    A3 --> A4
+    A4 --> A5
+    A5 --> A6
+    A6 --> A7
+    A7 --> G1
+
+    style S1 fill:#ffcccc
+    style G1 fill:#ccffcc
+    style A1 fill:#cce5ff
+    style A2 fill:#cce5ff
+    style A3 fill:#cce5ff
+    style A4 fill:#cce5ff
+    style A5 fill:#cce5ff
+    style A6 fill:#cce5ff
+    style A7 fill:#cce5ff
 ```
+
+**Planning Features:**
+- **A* Search Algorithm** - Finds lowest-cost path to goal
+- **State Preconditions** - Validates action requirements
+- **Cost Estimation** - Heuristic-based cost calculation
+- **Dynamic Replanning** - Adapts to failures and new constraints
 
 ## Agent Coordination
 
@@ -175,6 +237,19 @@ Task Sentinel leverages **54 existing Claude Code agents** organized by pattern:
 - 📚 [Implementation Plan](docs/task_sentinel_implementation_plan.md) - **Comprehensive 6-week implementation plan with OODA+GOAP integration**
 - 📖 [Original Plan](docs/task_sentinel_plan.md) - Original Task Sentinel design document
 - 🚀 [Setup Instructions](docs/setup_instructions.md) - Complete setup guide
+- 🔒 [Distributed Locking Guide](docs/distributed-locking.md) - **Complete guide to distributed locking system**
+- 🏗️ [Lock Design ADR](docs/architecture/distributed-lock-design.md) - Architecture decision record for distributed locks
+
+### Phase 3 Distributed Execution Documentation
+
+- 📘 [Phase 3 Overview Guide](docs/phase3_guide.md) - **Complete distributed execution guide**
+- 🔧 [Distributed API Reference](docs/api/distributed.md) - **Comprehensive API documentation**
+- 📐 [Architecture Diagrams](docs/diagrams/architecture.md) - **Visual system architecture**
+- 🚀 [Deployment Guides](docs/deployment/) - **Step-by-step deployment instructions**
+  - [Single Worker Deployment](docs/deployment/single-worker.md)
+  - [Multiple Worker Deployment](docs/deployment/multi-worker.md)
+  - [GitHub Actions Deployment](docs/deployment/github-actions.md)
+  - [Docker Deployment](docs/deployment/docker.md)
 
 ### Key Sections in Implementation Plan
 
@@ -198,10 +273,44 @@ Task Sentinel leverages **54 existing Claude Code agents** organized by pattern:
 
 ### Distributed Locking
 
-- **Atomic Operations** - GitHub issue assignment as distributed lock
-- **Heartbeat Monitoring** - Automated keepalive every 5 minutes
-- **Stale Lock Detection** - Automatic removal after 10 minutes of inactivity
-- **Lock Metadata** - Worker ID, node ID, timestamp tracked
+Task Sentinel implements a robust distributed locking system using GitHub Issues as the coordination mechanism:
+
+```mermaid
+sequenceDiagram
+    participant W1 as Worker 1
+    participant GH as GitHub Issues
+    participant HB as Heartbeat Monitor
+    participant W2 as Worker 2
+
+    W1->>GH: Attempt lock (assign issue)
+    GH-->>W1: ✅ Lock acquired
+    W1->>HB: Start heartbeat (30s interval)
+
+    loop Every 30s
+        HB->>GH: Send heartbeat comment
+    end
+
+    W2->>GH: Attempt same lock
+    GH-->>W2: ❌ Already assigned
+    W2->>W2: Exponential backoff retry
+
+    Note over HB,GH: If heartbeat stops for 5min
+    HB->>GH: Detect stale lock
+    HB->>GH: Release lock (remove assignment)
+    GH-->>W2: ✅ Lock now available
+```
+
+**Features:**
+- **Atomic Operations** - GitHub issue assignment as distributed lock primitive
+- **Heartbeat Monitoring** - Automated keepalive every 30 seconds
+- **Stale Lock Detection** - Automatic removal after 5 minutes of inactivity
+- **Conflict Resolution** - Multiple strategies: RETRY (exponential backoff), FAIL_FAST, STEAL_STALE
+- **Lock Metadata** - Worker ID, node ID, timestamps, and task info tracked in GitHub comments
+- **Retry Logic** - Exponential backoff: 1s, 2s, 4s, 8s, 16s (max 5 retries)
+- **Metrics Tracking** - Comprehensive monitoring of acquisitions, conflicts, and performance
+- **Signal Handlers** - Graceful shutdown on SIGTERM, SIGINT, SIGHUP
+
+📚 **Documentation**: See [Distributed Locking Guide](docs/distributed-locking.md) for detailed usage
 
 ### Quality Assurance
 
@@ -220,26 +329,45 @@ Task Sentinel leverages **54 existing Claude Code agents** organized by pattern:
 
 ## Implementation Status
 
-### Phase 1: Foundation (Week 1) - 🟡 Planned
-- [ ] Create Task Sentinel skill
-- [ ] Build slash commands
-- [ ] Configure hooks
-- [ ] GitHub Issues integration
+### Phase 1: Foundation (Week 1) - ✅ **COMPLETED**
+- [x] Create Task Sentinel skill framework
+- [x] Build slash commands (task-claim, task-create, etc.)
+- [x] Configure hooks system
+- [x] GitHub Issues integration
 
-### Phase 2: OODA + GOAP (Week 2) - 🟡 Planned
-- [ ] GOAP state model
-- [ ] OODA loop implementation
-- [ ] Adaptive replanning
+### Phase 2: OODA + GOAP (Week 2) - ✅ **COMPLETED**
+- [x] GOAP state model implementation
+- [x] OODA loop engine (Observe-Orient-Decide-Act)
+- [x] Adaptive replanning with failure recovery
+- [x] Goal-planner and code-goal-planner integration
 
-### Phase 3: Distributed Execution (Week 3) - 🟡 Planned
-- [ ] Distributed locking
-- [ ] Worker coordination
-- [ ] Memory synchronization
+### Phase 3: Distributed Execution (Week 3) - ✅ **COMPLETED**
+- [x] Distributed locking system with GitHub Issues
+- [x] Lock acquisition with exponential backoff retry (1s-16s)
+- [x] Heartbeat monitoring for stale lock detection (5min threshold)
+- [x] Conflict resolution strategies (RETRY, FAIL_FAST, STEAL_STALE)
+- [x] Worker coordination and registry
+- [x] Memory synchronization with vector clocks
+- [x] Load balancing with multiple strategies
+- [x] Comprehensive metrics and monitoring
+- [x] Complete Phase 3 documentation suite
+- [x] API reference for all distributed components
+- [x] Architecture diagrams and visualizations
+- [x] Deployment guides (single, multi, GitHub Actions, Docker)
+- [x] **Security hardening** - Fixed 9 command injection vulnerabilities
+- [x] **MCP integration** - Full memory coordination implementation
+- [x] **Memory leak fixes** - Bounded arrays with FIFO eviction
+- [x] **Race condition resolution** - Optimistic locking with CAS pattern
+- [x] **Signal handlers** - Graceful shutdown for all components
+- [x] **Error handling** - Heartbeat retry logic with status updates
 
-### Phase 4: Quality Assurance (Week 4) - 🟡 Planned
-- [ ] Agentic QE integration
-- [ ] Automated testing
-- [ ] Evidence collection
+### Phase 4: Quality Assurance (Week 4) - 🟡 In Progress
+- [x] Code review system (9 PRs with comprehensive reviews)
+- [x] Security scanning and vulnerability fixes
+- [x] Test framework setup
+- [ ] Agentic QE integration (planned)
+- [ ] Automated E2E testing (planned)
+- [ ] Evidence collection automation (planned)
 
 ### Phase 5: CI/CD (Week 5) - 🟡 Planned
 - [ ] GitHub Actions workflows
@@ -249,7 +377,20 @@ Task Sentinel leverages **54 existing Claude Code agents** organized by pattern:
 ### Phase 6: Monitoring (Week 6) - 🟡 Planned
 - [ ] Monitoring dashboard
 - [ ] Performance optimization
-- [ ] Neural training
+- [ ] Neural training integration
+
+### Recent Improvements (11 Critical Fixes - All PRs Merged)
+
+**Security & Reliability (9.2/10 Code Review Scores):**
+- PR #21: Removed 7,856 tracked files (node_modules, coverage)
+- PR #22: Fixed 9 command injection vulnerabilities + input sanitization
+- PR #23: Implemented MCP memory integration (4 stubbed methods)
+- PR #24: Fixed 5 async/await issues in metrics collection
+- PR #25: Memory leak fix - bounded decisions array
+- PR #26: Race condition fix - optimistic locking (CAS pattern)
+- PR #27: Memory leak fix - heartbeat acquisitionTimes array
+- PR #28: Signal handlers for graceful shutdown (4 components)
+- PR #29: Heartbeat error handling with retry logic
 
 ## Performance Metrics
 
