@@ -198,7 +198,7 @@ export class OODAMonitor {
   /**
    * Record a replanning event
    */
-  public recordReplan(reason: string, cycleId?: string): void {
+  public recordReplan(_reason: string, cycleId?: string): void {
     const id = cycleId || this.currentCycleId;
     if (!id) return;
 

@@ -215,7 +215,7 @@ export class AdaptiveReplanner extends EventEmitter {
   /**
    * Classify the type of failure
    */
-  private classifyFailure(action: Action, error: Error, context: Record<string, any>): FailureType {
+  private classifyFailure(_action: Action, error: Error, _context: Record<string, any>): FailureType {
     const errorMessage = error.message.toLowerCase();
     const errorName = error.name.toLowerCase();
 
@@ -344,7 +344,7 @@ export class AdaptiveReplanner extends EventEmitter {
     return factors;
   }
 
-  private analyzeResourceAvailability(action: Action, state: SystemState): string[] {
+  private analyzeResourceAvailability(_action: Action, state: SystemState): string[] {
     const factors: string[] = [];
 
     state.availableResources.forEach(resource => {
@@ -389,7 +389,7 @@ export class AdaptiveReplanner extends EventEmitter {
     return factors;
   }
 
-  private analyzeQualityGate(action: Action, state: SystemState): string[] {
+  private analyzeQualityGate(_action: Action, state: SystemState): string[] {
     const factors: string[] = [];
 
     const goal = state.currentPlan.goal;
@@ -544,7 +544,7 @@ export class AdaptiveReplanner extends EventEmitter {
 
   private async createAlternativePathPlans(
     state: SystemState,
-    goal: Goal,
+    _goal: Goal,
     failedAction: Action
   ): Promise<AlternativePlan[]> {
     const alternatives: AlternativePlan[] = [];
@@ -595,7 +595,7 @@ export class AdaptiveReplanner extends EventEmitter {
            goal.successCriteria.some(sc => !sc.required);
   }
 
-  private createSimplifiedPlan(state: SystemState, goal: Goal, failedAction: Action): AlternativePlan {
+  private createSimplifiedPlan(state: SystemState, goal: Goal, _failedAction: Action): AlternativePlan {
     // Remove optional constraints and success criteria
     const simplifiedGoal: Goal = {
       ...goal,
@@ -632,7 +632,7 @@ export class AdaptiveReplanner extends EventEmitter {
     };
   }
 
-  private createResourceRequestPlan(state: SystemState, failedAction: Action): AlternativePlan {
+  private createResourceRequestPlan(state: SystemState, _failedAction: Action): AlternativePlan {
     const plan: Plan = {
       ...state.currentPlan,
       id: this.generatePlanId(),
@@ -654,7 +654,7 @@ export class AdaptiveReplanner extends EventEmitter {
     };
   }
 
-  private createEscalationPlan(state: SystemState, failedAction: Action, failure: Failure): AlternativePlan {
+  private createEscalationPlan(state: SystemState, _failedAction: Action, failure: Failure): AlternativePlan {
     const plan: Plan = {
       ...state.currentPlan,
       id: this.generatePlanId()
@@ -772,7 +772,7 @@ export class AdaptiveReplanner extends EventEmitter {
     return sortedCheckpoints[sortedCheckpoints.length - 1] || null;
   }
 
-  private async reallocateResources(action: Action, state: SystemState): Promise<boolean> {
+  private async reallocateResources(_action: Action, state: SystemState): Promise<boolean> {
     // Find resources that can be freed up
     for (const resource of state.availableResources) {
       if (resource.allocated > 0 && resource.allocated < resource.capacity) {
@@ -927,7 +927,7 @@ export class AdaptiveReplanner extends EventEmitter {
   /**
    * Update pattern with failed strategy
    */
-  public recordFailedStrategy(failure: Failure, strategy: ReplanStrategy): void {
+  public recordFailedStrategy(_failure: Failure, strategy: ReplanStrategy): void {
     this.updateStrategyEffectiveness(strategy, false);
   }
 
