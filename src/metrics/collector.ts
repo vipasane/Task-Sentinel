@@ -83,7 +83,7 @@ export class MetricsCollector {
   /**
    * Record the end of an OODA phase
    */
-  recordPhaseEnd(phaseId: string, success: boolean, errorMessage?: string): void {
+  async recordPhaseEnd(phaseId: string, success: boolean, errorMessage?: string): Promise<void> {
     const phaseMetric = this.activePhases.get(phaseId);
 
     if (!phaseMetric) {
@@ -102,14 +102,14 @@ export class MetricsCollector {
 
     // Store in memory if enabled
     if (this.memoryEnabled) {
-      this.storeMetric('ooda/phase', phaseMetric);
+      await this.storeMetric('ooda/phase', phaseMetric);
     }
   }
 
   /**
    * Complete an OODA cycle
    */
-  endCycle(cycleId: string, replanningTriggered: boolean = false): void {
+  async endCycle(cycleId: string, replanningTriggered: boolean = false): Promise<void> {
     const cycle = this.activeCycles.get(cycleId);
 
     if (!cycle) {
@@ -132,7 +132,7 @@ export class MetricsCollector {
 
     // Store in memory
     if (this.memoryEnabled) {
-      this.storeMetric('ooda/cycle', cycle);
+      await this.storeMetric('ooda/cycle', cycle);
     }
   }
 
@@ -143,14 +143,14 @@ export class MetricsCollector {
   /**
    * Record plan generation metrics
    */
-  recordPlanGeneration(
+  async recordPlanGeneration(
     planId: string,
     planningTime: number,
     planCost: number,
     actionsCount: number,
     optimalCost?: number,
     replanningCount: number = 0
-  ): void {
+  ): Promise<void> {
     const metric: PlanningMetric = {
       planId,
       timestamp: Date.now(),
@@ -164,7 +164,7 @@ export class MetricsCollector {
     this.planningMetrics.push(metric);
 
     if (this.memoryEnabled) {
-      this.storeMetric('planning', metric);
+      await this.storeMetric('planning', metric);
     }
   }
 
@@ -175,14 +175,14 @@ export class MetricsCollector {
   /**
    * Record task execution
    */
-  recordTaskExecution(
+  async recordTaskExecution(
     taskId: string,
     duration: number,
     outcome: TaskOutcome,
     retryCount: number = 0,
     workerUtilization: number = 0,
     parallelEfficiency?: number
-  ): void {
+  ): Promise<void> {
     const metric: TaskExecutionMetric = {
       taskId,
       timestamp: Date.now(),
@@ -196,7 +196,7 @@ export class MetricsCollector {
     this.taskMetrics.push(metric);
 
     if (this.memoryEnabled) {
-      this.storeMetric('task', metric);
+      await this.storeMetric('task', metric);
     }
   }
 
@@ -207,14 +207,14 @@ export class MetricsCollector {
   /**
    * Record system performance snapshot
    */
-  recordSystemMetrics(
+  async recordSystemMetrics(
     workerUtilization: number,
     parallelEfficiency: number,
     memoryUsageMB: number,
     lockContentionMs: number,
     activeWorkers: number,
     queuedTasks: number
-  ): void {
+  ): Promise<void> {
     const metric: SystemMetric = {
       timestamp: Date.now(),
       workerUtilization,
@@ -228,7 +228,7 @@ export class MetricsCollector {
     this.systemMetrics.push(metric);
 
     if (this.memoryEnabled) {
-      this.storeMetric('system', metric);
+      await this.storeMetric('system', metric);
     }
   }
 

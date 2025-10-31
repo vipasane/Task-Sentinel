@@ -9,6 +9,66 @@
  */
 
 import { EventEmitter } from 'events';
+import { spawn } from 'child_process';
+
+// ============================================================================
+// Security Helpers
+// ============================================================================
+
+/**
+ * Input validation for memory keys
+ */
+function validateMemoryKey(key: string): string {
+  if (!key || typeof key !== 'string') {
+    throw new Error('Invalid memory key: must be a non-empty string');
+  }
+
+  // Remove shell metacharacters
+  const sanitized = key.replace(/[;&|`$(){}[\]<>]/g, '');
+
+  // Validate key format (alphanumeric, slashes, hyphens, underscores, dots)
+  if (!/^[a-zA-Z0-9/_.-]+$/.test(sanitized)) {
+    throw new Error(`Invalid memory key format: ${key}`);
+  }
+
+  return sanitized;
+}
+
+/**
+ * Execute MCP memory command safely using spawn
+ */
+function execMemoryCommand(operation: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('npx', [
+      '@modelcontextprotocol/server-memory',
+      operation,
+      ...args
+    ]);
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve(stdout);
+      } else {
+        reject(new Error(`MCP memory command failed (${code}): ${stderr}`));
+      }
+    });
+
+    child.on('error', (error) => {
+      reject(error);
+    });
+  });
+}
 
 // ============================================================================
 // Types & Interfaces
@@ -193,6 +253,7 @@ class ConflictResolvers {
    */
   static maxValue(entries: MemoryEntry<number>[]): ConflictResolution<number> {
     const max = Math.max(...entries.map(e => e.value));
+    const winner = entries.find(e => e.value === max)!;
     const discarded = entries.filter(e => e.value !== max);
 
     return {
@@ -302,7 +363,6 @@ export class MemorySyncManager extends EventEmitter {
   private subscriptions = new Map<string, SubscriptionOptions>();
   private batchTimer?: NodeJS.Timeout;
   private heartbeatTimer?: NodeJS.Timeout;
-  private signalHandlersRegistered = false;
   private config: Required<MemorySyncConfig>;
   private metrics = {
     reads: 0,
@@ -327,9 +387,6 @@ export class MemorySyncManager extends EventEmitter {
 
     this.vectorClock = new VectorClockManager(this.config.workerId);
     this.cache = new CacheManager(this.config.cacheSize);
-
-    // Setup signal handlers for graceful shutdown
-    this.setupSignalHandlers();
 
     this.startBatchProcessor();
     this.startHeartbeat();
@@ -744,69 +801,106 @@ export class MemorySyncManager extends EventEmitter {
   // MCP Integration (Simulated)
   // ==========================================================================
 
-  private async mcpRead<T>(_key: string): Promise<T | null> {
-    // In real implementation, this would call MCP memory_usage tool
-    // For now, return null to simulate empty memory
-    return null;
+  /**
+   * Read value from MCP memory
+   */
+  private async mcpRead<T>(key: string): Promise<T | null> {
+    try {
+      // Validate and construct namespaced key
+      const validated_key = validateMemoryKey(key);
+      const namespaced_key = `task-sentinel/${validated_key}`;
+
+      // Use safe spawn-based execution
+      const result = await execMemoryCommand('retrieve', [namespaced_key]);
+
+      // Parse the returned JSON
+      const parsed = JSON.parse(result.trim());
+      return parsed as T;
+    } catch (error) {
+      // Return null if key doesn't exist or parsing fails
+      if (error instanceof Error && error.message.includes('not found')) {
+        return null;
+      }
+      console.error(`[MemorySync] Failed to read key ${key}:`, error);
+      return null;
+    }
   }
 
-  private async mcpWrite(_key: string, _entry: MemoryEntry): Promise<void> {
-    // In real implementation, this would call MCP memory_usage tool
-    // mcp__claude-flow__memory_usage({
-    //   action: 'store',
-    //   key,
-    //   value: JSON.stringify(entry),
-    //   namespace: 'task-sentinel',
-    //   ttl: entry.ttl
-    // })
+  /**
+   * Write value to MCP memory
+   */
+  private async mcpWrite(key: string, entry: MemoryEntry): Promise<void> {
+    try {
+      // Validate and construct namespaced key
+      const validated_key = validateMemoryKey(key);
+      const namespaced_key = `task-sentinel/${validated_key}`;
+
+      // Serialize the entry
+      const serialized = JSON.stringify(entry);
+
+      // Use safe spawn-based execution
+      await execMemoryCommand('store', [namespaced_key, serialized]);
+
+      console.log(`[MemorySync] Stored key: ${namespaced_key} (${serialized.length} bytes)`);
+    } catch (error) {
+      console.error(`[MemorySync] Failed to write key ${key}:`, error);
+      throw error;
+    }
   }
 
-  private async mcpDelete(_key: string): Promise<void> {
-    // In real implementation, this would call MCP memory_usage tool
-    // mcp__claude-flow__memory_usage({
-    //   action: 'delete',
-    //   key,
-    //   namespace: 'task-sentinel'
-    // })
+  /**
+   * Delete value from MCP memory
+   */
+  private async mcpDelete(key: string): Promise<void> {
+    try {
+      // Validate and construct namespaced key
+      const validated_key = validateMemoryKey(key);
+      const namespaced_key = `task-sentinel/${validated_key}`;
+
+      // Use safe spawn-based execution
+      await execMemoryCommand('delete', [namespaced_key]);
+
+      console.log(`[MemorySync] Deleted key: ${namespaced_key}`);
+    } catch (error) {
+      // Silently ignore if key doesn't exist
+      if (error instanceof Error && error.message.includes('not found')) {
+        return;
+      }
+      console.error(`[MemorySync] Failed to delete key ${key}:`, error);
+      throw error;
+    }
   }
 
-  private async mcpSearch(_pattern: string): Promise<string[]> {
-    // In real implementation, this would call MCP memory_usage tool
-    // mcp__claude-flow__memory_usage({
-    //   action: 'search',
-    //   pattern,
-    //   namespace: 'task-sentinel'
-    // })
-    return [];
+  /**
+   * Search for keys matching pattern in MCP memory
+   */
+  private async mcpSearch(pattern: string): Promise<string[]> {
+    try {
+      // Validate pattern (allow wildcards)
+      const validated_pattern = pattern.replace(/[;&|`$(){}[\]<>]/g, '');
+      const namespaced_pattern = `task-sentinel/${validated_pattern}`;
+
+      // Use safe spawn-based execution
+      const result = await execMemoryCommand('list-keys', [namespaced_pattern]);
+
+      // Parse result (newline-separated keys)
+      const keys = result
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map(k => k.replace(/^task-sentinel\//, '')); // Remove namespace prefix
+
+      console.log(`[MemorySync] Search pattern "${pattern}" found ${keys.length} keys`);
+      return keys;
+    } catch (error) {
+      console.error(`[MemorySync] Failed to search pattern ${pattern}:`, error);
+      return [];
+    }
   }
 
   // ==========================================================================
   // Lifecycle & Utilities
   // ==========================================================================
-
-  /**
-   * Setup signal handlers for graceful shutdown
-   */
-  private setupSignalHandlers(): void {
-    // Prevent duplicate registration
-    if (this.signalHandlersRegistered) return;
-    this.signalHandlersRegistered = true;
-
-    const cleanup = async (signal: string) => {
-      console.log(`[MemorySyncManager] Received ${signal}, cleaning up...`);
-      try {
-        await this.shutdown();
-        console.log('[MemorySyncManager] Cleanup completed');
-      } catch (error) {
-        console.error('[MemorySyncManager] Error during cleanup:', error);
-      }
-    };
-
-    // Handle termination signals
-    process.on('SIGTERM', () => cleanup('SIGTERM'));
-    process.on('SIGINT', () => cleanup('SIGINT'));
-    process.on('SIGHUP', () => cleanup('SIGHUP'));
-  }
 
   /**
    * Shutdown and cleanup
