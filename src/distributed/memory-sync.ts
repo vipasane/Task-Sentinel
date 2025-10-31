@@ -303,6 +303,7 @@ export class MemorySyncManager extends EventEmitter {
   private subscriptions = new Map<string, SubscriptionOptions>();
   private batchTimer?: NodeJS.Timeout;
   private heartbeatTimer?: NodeJS.Timeout;
+  private signalHandlersRegistered = false;
   private config: Required<MemorySyncConfig>;
   private metrics = {
     reads: 0,
@@ -327,6 +328,9 @@ export class MemorySyncManager extends EventEmitter {
 
     this.vectorClock = new VectorClockManager(this.config.workerId);
     this.cache = new CacheManager(this.config.cacheSize);
+
+    // Setup signal handlers for graceful shutdown
+    this.setupSignalHandlers();
 
     this.startBatchProcessor();
     this.startHeartbeat();
@@ -780,6 +784,30 @@ export class MemorySyncManager extends EventEmitter {
   // ==========================================================================
   // Lifecycle & Utilities
   // ==========================================================================
+
+  /**
+   * Setup signal handlers for graceful shutdown
+   */
+  private setupSignalHandlers(): void {
+    // Prevent duplicate registration
+    if (this.signalHandlersRegistered) return;
+    this.signalHandlersRegistered = true;
+
+    const cleanup = async (signal: string) => {
+      console.log(`[MemorySyncManager] Received ${signal}, cleaning up...`);
+      try {
+        await this.shutdown();
+        console.log('[MemorySyncManager] Cleanup completed');
+      } catch (error) {
+        console.error('[MemorySyncManager] Error during cleanup:', error);
+      }
+    };
+
+    // Handle termination signals
+    process.on('SIGTERM', () => cleanup('SIGTERM'));
+    process.on('SIGINT', () => cleanup('SIGINT'));
+    process.on('SIGHUP', () => cleanup('SIGHUP'));
+  }
 
   /**
    * Shutdown and cleanup
